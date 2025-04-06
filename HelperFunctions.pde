@@ -25,3 +25,10 @@ public static float[][] copy2DArray(float[][] arr1) {
 
   return arr2;
 }
+
+boolean contains(ArrayList<int[]> a, int[] c) {
+  for (int[] b: a) {
+    if ((b[0] == c[0]) && (b[1] == c[1])) return true;
+  }
+  return false;
+}

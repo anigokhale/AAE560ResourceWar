@@ -21,6 +21,7 @@ class Nation {
   }
 
   void iterate() {
+    this.R = max(0, this.R);
     float atn = 0;
     ArrayList<Action> action_options = new ArrayList<Action>(0);
 
@@ -83,7 +84,7 @@ class Nation {
             contestants[l] = richest_neighbor_neighbor_nationality_nums[l + 1]*max(0, pow(8 - nations.get(l).A_bar, -1)*nations.get(l).getDisposableResources());
             total_score += contestants[l];
           }
-          if (this.getDisposableResources() > 0) {
+          if (total_score > 0) {
             if (neighbor_nats[richest_neighbor] == -1) { //Cell has at least one unallied controlled neighbor BUT richest neighbor is uncontrolled. Option found: CONTEST
               action_options.add(new Contest(this, neighbors.get(richest_neighbor), nationality_nums[this.nationality + 1], contestants[this.nationality]/total_score));
             } else { //Cell has at least one allied neighbor AND richest neighbor is controlled. Option found: ATTACK
@@ -99,6 +100,7 @@ class Nation {
     if (action_options.size() > 0) {
       Collections.sort(action_options);
       Action best_action = action_options.get(0);
+        if (t > 1e3) println(this.nationality, best_action.getClass().getName());
 
       if (best_action instanceof Colonize) {
         this.addToTerritory(best_action.cell);
@@ -107,10 +109,16 @@ class Nation {
         contested_cells[best_action.cell[0]][best_action.cell[1]].add(this);
         this.R -= fighting_effort;
       } else if (best_action instanceof Abandon) {
+        //println(action_options.get(1).delta_F, resources[best_action.cell[0]][best_action.cell[1]], best_action.delta_F);
         this.removeFromTerritory(best_action.cell);
         //println("Nation " + this.nationality + " abandoned cell at (" + best_action.cell[0] + ", " + best_action.cell[1] + ")");
-      } else if (best_action instanceof Null) {
+      } else {
+        null_actions++;
         //println("Nation " + this.nationality + " chose to do nothing!");
+      }
+      last_actions[this.nationality].add(best_action);
+      if (last_actions[this.nationality].size() > num_last_actions_to_record) {
+        last_actions[this.nationality].remove(0);
       }
     }
   }
@@ -174,15 +182,21 @@ class Colonize extends Action {
 class Action implements Comparable {
   int[] cell;
   float delta_F;
+  Nation N_i;
   Action(Nation N_i, int[] c) {
     this.cell = c;
+    this.N_i = N_i;
   }
 
   int compareTo(Object o) {
-    if (Float.isNaN(this.delta_F)) println("NaN found!");
+    if (Float.isNaN(this.delta_F)) println("NaN found in " + this.getClass().getName() + " made by Nation " + this.N_i.nationality);
     Action a = (Action)o;
     if (this.delta_F > a.delta_F) return -1;
     else if (this.delta_F < a.delta_F) return 1;
     else return 0;
+  }
+
+  boolean equals(Action a) {
+    return (this.cell[0] == a.cell[0]) && (this.cell[1] == a.cell[1]);
   }
 }

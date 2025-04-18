@@ -4,17 +4,21 @@ void initializeDataLogging() {
     String filename = ".\\output\\WAR_SIMULATION_" + ft.format(new Date()) + ".txt";
     out = createWriter(filename);
     out.println("SIMULATION PARAMETERS:");
-    out.print("n = " + n + "\nm = " + m + "\np = " + p + "\nresource_noise_scale = ");
-    out.println(resource_noise_scale);
-    out.println();
+    out.println("n = " + n + "\nm = " + m + "\np = " + p + "\nresource_noise_scale = " + resource_noise_scale + "\nq = " + q + 
+              "\nE_C = " + fighting_effort + "\nP_HF = " + homefield_advantage + "\nR_t = " + total_resources);
+
     out.println("SIMULATION DATA:");
-    String[] data_labels = new String[2*(p + 1) + 1];
+    String[] data_labels = new String[4*p + 1];
     data_labels[0] = "t";
     int ind = 1;
-    for (int l = 0; l < p + 1; l++) {
-      data_labels[ind] = "NATION " + (l - 1) + " SIZE";
+    for (int l = 1; l < p + 1; l++) {
+      data_labels[ind] = "NATION " + (l - 1) + " S";
       ind++;
-      data_labels[ind] = "NATION " + (l - 1) + " RESOURCES";
+      data_labels[ind] = "NATION " + (l - 1) + " R";
+      ind++;
+      data_labels[ind] = "NATION " + (l - 1) + " A_BAR";
+      ind++;
+      data_labels[ind] = "NATION " + (l - 1) + " ACTION";
       ind++;
     }
     for (int l = 0; l < data_labels.length; l++) {
@@ -75,13 +79,19 @@ void initializeCapitols() {
     capitols[i][0] = try_cap[0];
     capitols[i][1] = try_cap[1];
     resources[capitols[i][0]][capitols[i][1]] = 1.0;
+    nations.add(new Nation(i, 0, 0, 0));
+    last_actions[i] = new ArrayList<Action>(0);
+  }
+  for (int i = 0; i < p; i++) {
     float[] genome = new float[3];
     float total = 0;
     for (int j = 0; j < 3; j++) {
       genome[j] = (float)Math.random();
       total += genome[j];
     }
-    nations.add(new Nation(i, genome[0]/total, genome[1]/total, genome[2]/total));
+    nations.get(i).k_S = genome[0]/total;
+    nations.get(i).k_R = genome[1]/total;
+    nations.get(i).k_A_bar = genome[2]/total;
   }
 }
 

@@ -10,16 +10,19 @@ void mouseDragged() {
   if (resource_mode.equals("DRAW") && !drawing_done) {
     int j = constrain(floor(map(mouseX, 0, width, 0, m)), 0, m - 1);
     int i = constrain(floor(map(mouseY, 0, height, 0, n)), 0, n - 1);
-    
+
     float approach = 0.1;
     resources[i][j] = (1. - approach)*resources[i][j] + approach;
   }
 }
 
 void logData() {
-  out.print(frameCount + "\t");
+  out.print(t + "\t");
   for (int l = 0; l < p; l++) {
     out.print(nations.get(l).territory.size() + "\t");
+    out.print(nations.get(l).R + "\t");
+    out.print(nations.get(l).A_bar + "\t");
+    out.print(last_actions[l].get(last_actions[l].size() - 1).getClass().getName().substring(18) + "\t");
   }
   out.println();
   out.flush();
@@ -65,8 +68,8 @@ void updateAll() {
       } else {
         int defender = nationalities[c[0]][c[1]];
         nations.get(defender).R -= fighting_effort;
-        float guerilla_prob = (float)(Math.random());
-        if ((winner != defender) && (guerilla_prob >= homefield_advantage)) {
+        float homefield_prob = (float)(Math.random());
+        if ((winner != defender) && (homefield_prob >= homefield_advantage)) {
           nations.get(defender).removeFromTerritory(c);
           nations.get(winner).addToTerritory(c);
         }
@@ -77,6 +80,8 @@ void updateAll() {
   contested_list.clear();
 
   nationalities = copy2DArray(new_nationalities);
+  
+  if (log_data) logData();
 }
 
 void drawGrid() {
@@ -104,22 +109,51 @@ void drawGrid() {
     int j = capitols[l][1];
     fill(capitol_colors[l]);
     rect(left + j*cell_length + grid_weight, i*cell_length + grid_weight, cell_length - 2*grid_weight, cell_length - 2*grid_weight);
-    fill(0);
-    textSize(cell_length);
-    textAlign(LEFT, BOTTOM);
-    text(max(0, nations.get(l).getNationFitness()), left + j*cell_length + grid_weight, i*cell_length + grid_weight);
-    textAlign(RIGHT, TOP);
-    text(l, left + j*cell_length + grid_weight, i*cell_length + grid_weight);
-    textAlign(CENTER, TOP);
-    textSize(cell_length );
-    text("(" + nations.get(l).k_S + ", " + nations.get(l).k_R + ", " + nations.get(l).k_A_bar + ")", left + j*cell_length + grid_weight, (i + 1)*cell_length + grid_weight);
+    //fill(0);
+    //textSize(cell_length);
+    //textAlign(CENTER, BOTTOM);
+    //text("(" + nations.get(l).territory.size() + ", " + nations.get(l).R + ", " + nations.get(l).A_bar + ")", left + j*cell_length + grid_weight, i*cell_length + grid_weight);
+    //textAlign(RIGHT, TOP);
+    //text(l, left + j*cell_length + grid_weight, i*cell_length + grid_weight);
+    //textAlign(CENTER, TOP);
+    //textSize(cell_length );
+    //text("(" + nations.get(l).k_S + ", " + nations.get(l).k_R + ", " + nations.get(l).k_A_bar + ")", left + j*cell_length + grid_weight, (i + 1)*cell_length + grid_weight);
+  }
+  if (nash) {
+    fill(255, 0, 0);
+    textAlign(CENTER, CENTER);
+    textSize(100);
+    text("NASH EQUILIBRIUM ACHIEVED", width/2, height/2);
+    run = false;
   }
 }
 
 void iterate() {
   for (Nation nat : nations) {
-    if (nat.territory.size() > 0) nat.iterate();
+    if (nat.territory.size() > 0) {
+      nat.iterate();
+    }
   }
+  t++;
+  if (!nash && checkNash()) nash = true;
+}
+
+boolean checkNash() {
+  if (t < num_last_actions_to_record) return false;
+  for (int i = 0; i < p; i++) {
+    if (nations.get(i).territory.size() > 0) {
+      for (int j = 0; j < last_actions[i].size(); j++) {
+        if (last_actions[i].get(j) instanceof Contest) return false;
+        else if (j > 0 && last_actions[i].get(j) instanceof Colonize && last_actions[i].get(j - 1) instanceof Colonize) return false;
+        else if (j > 0 && last_actions[i].get(j) instanceof Colonize && last_actions[i].get(j - 1) instanceof Null) return false;
+        else if (j > 0 && last_actions[i].get(j) instanceof Null && last_actions[i].get(j - 1) instanceof Colonize) return false;
+        else if (j > 0 && last_actions[i].get(j) instanceof Null && last_actions[i].get(j - 1) instanceof Abandon) return false;
+        else if (j > 0 && last_actions[i].get(j) instanceof Abandon && last_actions[i].get(j - 1) instanceof Null) return false;
+        else if (j > 0 && last_actions[i].get(j) instanceof Colonize && last_actions[i].get(j - 1) instanceof Abandon && !last_actions[i].get(j).equals(last_actions[i].get(j - 1))) return false;
+      }
+    }
+  }
+  return true;
 }
 
 ArrayList<int[]> getNeighbors(int[] c) {

@@ -1,12 +1,26 @@
+void setupMenu() {
+  JFrame setup_frame;
+  JLabel header_label;
+  setup_frame = new JFrame("SIMULATION SETUP");
+  setup_frame.setSize(640, 480);
+  setup_frame.setLayout(new GridLayout(1, 3));
+
+
+  setup_frame.setVisible(true);
+}
+
 void initializeDataLogging() {
   if (log_data) {
     SimpleDateFormat ft = new SimpleDateFormat("hh_mm_ss_dd_MM_yyyy");
     String filename = ".\\output\\WAR_SIMULATION_" + ft.format(new Date()) + ".txt";
     out = createWriter(filename);
     out.println("SIMULATION PARAMETERS:");
-    out.println("n = " + n + "\nm = " + m + "\np = " + p + "\nresource_noise_scale = " + resource_noise_scale + "\nq = " + q + 
-              "\nE_C = " + fighting_effort + "\nP_HF = " + homefield_advantage + "\nR_t = " + total_resources);
-
+    out.println("n = " + n + "\nm = " + m + "\np = " + p + "\nresource_noise_scale = " + resource_noise_scale + "\nq = " + q +
+      "\nE_C = " + contest_effort + "\nE_R = " + q*reinforcement_factor + "\nP_HF = " + reinforcement_advantage + "\nR_t = " + total_resources);
+    out.println("NATION PARAMETERS:");
+    for (int i = 0; i < p; i++) {
+      out.println("NATION " + i + ":" + "\tk_S = " + nations.get(i).k_S + "\tk_R = " + nations.get(i).k_R + "\tk_A_bar = " + nations.get(i).k_A_bar);
+    }
     out.println("SIMULATION DATA:");
     String[] data_labels = new String[4*p + 1];
     data_labels[0] = "t";
@@ -59,7 +73,7 @@ void resourceCalcs() {
   if ((n*m)%2 == 0) q = 0.5*(all_resources[(int)(q_quartile*(float)n*m) - 1] + all_resources[(int)(q_quartile*(float)n*m)]);
   else q = all_resources[(int)(q_quartile*(float)n*m)];
 
-  fighting_effort = q*fighting_effort_factor;
+  contest_effort = q*contest_effort_factor;
 }
 
 void initializeCapitols() {
@@ -78,21 +92,24 @@ void initializeCapitols() {
     }
     capitols[i][0] = try_cap[0];
     capitols[i][1] = try_cap[1];
-    resources[capitols[i][0]][capitols[i][1]] = 1.0;
-    nations.add(new Nation(i, 0, 0, 0));
+    total_controlled_resources += resources[capitols[i][0]][capitols[i][1]];
+    new_nationalities[capitols[i][0]][capitols[i][1]] = i;
+    nationalities[capitols[i][0]][capitols[i][1]] = i;
+
+    //float[] genome = new float[3];
+    //float total = 0;
+    //for (int j = 0; j < 3; j++) {
+    //  genome[j] = (float)Math.random();
+    //  total += genome[j];
+    //}
+
+    //nations.add(new Nation(i, genome[0]/total, genome[1]/total, genome[2]/total));
+    nations.add(new Nation(i, 1.0/3., 1.0/3., 1.0/3.));
     last_actions[i] = new ArrayList<Action>(0);
   }
-  for (int i = 0; i < p; i++) {
-    float[] genome = new float[3];
-    float total = 0;
-    for (int j = 0; j < 3; j++) {
-      genome[j] = (float)Math.random();
-      total += genome[j];
-    }
-    nations.get(i).k_S = genome[0]/total;
-    nations.get(i).k_R = genome[1]/total;
-    nations.get(i).k_A_bar = genome[2]/total;
-  }
+  nations.get(0).k_R = 0.1;
+  nations.get(0).k_S = 0.8;
+  nations.get(0).k_A_bar = 0.1;
 }
 
 boolean checkCapitols(int[][] caps, int[] c) {
@@ -105,14 +122,17 @@ boolean checkCapitols(int[][] caps, int[] c) {
 void initializeNationalities() {
   nationalities = new int[n][m];
   new_nationalities = new int[n][m];
+  reinforced = new boolean[n][m];
+  new_reinforced = new boolean[n][m];
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < m; j++) {
       nationalities[i][j] = -1;
       new_nationalities[i][j] = -1;
+      reinforced[i][j] = false;
+      new_reinforced[i][j] = false;
       contested_cells[i][j] = new ArrayList<Nation>(0);
     }
   }
-  for (int l = 0; l < p; l++) nationalities[capitols[l][0]][capitols[l][1]] = l;
 }
 
 void initializeColors() {

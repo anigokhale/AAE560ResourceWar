@@ -3,6 +3,11 @@ void keyReleased() {
     if (resource_mode.equals("DRAW")) resourceCalcs();
     if (!drawing_done) drawing_done = true;
     run = !run;
+  } else if (key == 'r') {
+    img_x = width/2;
+    img_y = height/2;
+    img_w = width;
+    img_h = height;
   }
 }
 
@@ -13,22 +18,40 @@ void mouseDragged() {
 
     float approach = 0.1;
     resources[i][j] = (1. - approach)*resources[i][j] + approach;
+  } else if (mouseButton == LEFT) {
+    img_x += mouseX - pmouseX;
+    img_y += mouseY - pmouseY;
   }
+}
+
+void mouseWheel(MouseEvent event) {
+  float e = event.getCount();
+
+  float delta_w = -e*0.1*img_w;
+  float delta_h = delta_w*height/width;
+
+  img_w += delta_w;
+  img_h += delta_h;
+
+  img_x -= (mouseX - img_x )*delta_w/img_w;
+  img_y -= (mouseY - img_y )*delta_h/img_h;
 }
 
 void logData() {
-  out.print(t + "\t");
-  for (int l = 0; l < p; l++) {
-    out.print(nations.get(l).territory.size() + "\t");
-    out.print(nations.get(l).R + "\t");
-    out.print(nations.get(l).A_bar + "\t");
-    out.print(last_actions[l].get(last_actions[l].size() - 1).getClass().getName().substring(18) + "\t");
+  if (t % log_period == 0) {
+    out.print(t + "\t");
+    for (int l = 0; l < p; l++) {
+      out.print(nations.get(l).territory.size() + "\t");
+      out.print(nations.get(l).R + "\t");
+      out.print(nations.get(l).A_bar + "\t");
+      out.print(last_actions[l].get(last_actions[l].size() - 1).getClass().getName().substring(18) + "\t");
+    }
+    out.println();
+    out.flush();
   }
-  out.println();
-  out.flush();
 }
 
-void updateAll() {
+void updateBattles() {
   for (int[] c : contested_list) {
     ArrayList<Nation> contenders = new ArrayList<Nation>(0);
     for (Nation nat : contested_cells[c[0]][c[1]]) contenders.add(nat);
@@ -41,8 +64,6 @@ void updateAll() {
       scores[contenders.get(i).nationality] += max(0, pow(8 - contenders.get(i).A_bar, -1)*contenders.get(i).getDisposableResources());
       total_score += scores[contenders.get(i).nationality];
     }
-    //println(contenders);
-    //println(total_score);
 
     if (total_score > 0) {
       float[] lb = new float[p];
@@ -51,10 +72,9 @@ void updateAll() {
       for (int i = 0; i < p - 1; i++) {
         ub[i] = lb[i] + scores[i]/total_score;
         lb[i + 1] = ub[i];
-        //println("Nation " + i + " bounds are " + lb[i] + " and " + ub[i]);
       }
       ub[p - 1] = 1.0;
-      //println("Nation " + (p - 1) + " bounds are " + lb[p - 1] + " and " + ub[p - 1]);
+
       float choose_winner = (float)(Math.random());
       int winner = -1;
       for (int i = 0; i < p; i++) {
@@ -63,16 +83,18 @@ void updateAll() {
           break;
         }
       }
-      if (nationalities[c[0]][c[1]] == -1) { // Contested cell is uncontrolled
+      if (nationalities[c[0]][c[1]] == -1) {
         nations.get(winner).addToTerritory(c);
-      } else {
+      } else if (reinforced[c[0]][c[1]]) {
         int defender = nationalities[c[0]][c[1]];
-        nations.get(defender).R -= fighting_effort;
         float homefield_prob = (float)(Math.random());
-        if ((winner != defender) && (homefield_prob >= homefield_advantage)) {
+        if ((winner != defender) && (homefield_prob >= reinforcement_advantage)) {
           nations.get(defender).removeFromTerritory(c);
           nations.get(winner).addToTerritory(c);
         }
+      } else {
+        nations.get(nationalities[c[0]][c[1]]).removeFromTerritory(c);
+        nations.get(winner).addToTerritory(c);
       }
     }
   }
@@ -80,35 +102,43 @@ void updateAll() {
   contested_list.clear();
 
   nationalities = copy2DArray(new_nationalities);
-  
-  if (log_data) logData();
+  reinforced = copy2DArray(new_reinforced);
 }
 
 void drawGrid() {
-  float cell_length = height/(float)n;
-  float left = width/2 - m*cell_length/2;
-  float right = width/2 + m*cell_length/2;
+  float cell_length = img.height/((float)n);
+  float left = img.width/2 - m*cell_length/2;
+  float right = img.width/2 + m*cell_length/2;
 
-  background(200);
-  stroke(0);
-  strokeWeight(grid_weight);
+  background(0);
+
+  img.beginDraw();
+  img.background(200);
+  img.stroke(0);
+  img.strokeWeight(grid_weight);
   for (int j = 0; j < m + 1; j++) {
-    line(left + j*cell_length, 0, left + j*cell_length, height);
+    img.line(left + j*cell_length, 0, left + j*cell_length, img.height);
   }
   for (int i = 0; i < n + 1; i++) {
-    line(left, i*cell_length, right, i*cell_length);
+    img.line(left, i*cell_length, right, i*cell_length);
   }
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < m; j++) {
-      fill(lerpColor(nation_colors[nationalities[i][j] + 1], color(0), resources[i][j]));
-      rect(left + j*cell_length + grid_weight, i*cell_length + grid_weight, cell_length - 2*grid_weight, cell_length - 2*grid_weight);
+      if (reinforced[i][j]) {
+        img.stroke(0);
+        img.strokeWeight(grid_weight*50);
+      } else img.noStroke();
+      img.fill(lerpColor(nation_colors[nationalities[i][j] + 1], color(0), resources[i][j]));
+      img.rect(left + (j)*cell_length + grid_weight, (i)*cell_length + grid_weight, cell_length - 2*grid_weight, cell_length - 2*grid_weight);
     }
   }
   for (int l = 0; l < p; l++) {
     int i = capitols[l][0];
     int j = capitols[l][1];
-    fill(capitol_colors[l]);
-    rect(left + j*cell_length + grid_weight, i*cell_length + grid_weight, cell_length - 2*grid_weight, cell_length - 2*grid_weight);
+    if (nationalities[i][j] == l) {
+      img.fill(capitol_colors[l]);
+      img.rect(left + j*cell_length + grid_weight, i*cell_length + grid_weight, cell_length - 2*grid_weight, cell_length - 2*grid_weight);
+    }
     //fill(0);
     //textSize(cell_length);
     //textAlign(CENTER, BOTTOM);
@@ -120,22 +150,34 @@ void drawGrid() {
     //text("(" + nations.get(l).k_S + ", " + nations.get(l).k_R + ", " + nations.get(l).k_A_bar + ")", left + j*cell_length + grid_weight, (i + 1)*cell_length + grid_weight);
   }
   if (nash) {
-    fill(255, 0, 0);
-    textAlign(CENTER, CENTER);
-    textSize(100);
-    text("NASH EQUILIBRIUM ACHIEVED", width/2, height/2);
+    img.fill(255, 0, 0);
+    img.textAlign(CENTER, CENTER);
+    img.textSize(100);
+    img.text("NASH EQUILIBRIUM ACHIEVED", img.width/2, img.height/2);
     run = false;
   }
+  img.endDraw();
+
+  image(img, img_x - img_w/2, img_y - img_h/2, img_w, img_h);
 }
 
 void iterate() {
+  int tct = 0;
+  float tcr = 0;
   for (Nation nat : nations) {
     if (nat.territory.size() > 0) {
       nat.iterate();
     }
+    tct += nat.territory.size();
+    tcr += nat.R;
   }
+  //println();
+  updateBattles();
   t++;
+  total_controlled_territory = tct;
+  total_controlled_resources = tcr;
   if (!nash && checkNash()) nash = true;
+  if (log_data) logData();
 }
 
 boolean checkNash() {
